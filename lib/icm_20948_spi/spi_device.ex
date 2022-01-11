@@ -5,7 +5,9 @@ defmodule Icm20948Spi.SpiDevice do
   defstruct [:spi_ref, :last_bank, :last_mems_bank, :gyro_sf, :data_ready_status]
 
   @spec new(binary(), list()) :: struct()
-  def new(bus_name \\ "spidev1.0", options \\ []) do
+  def new(bus_name \\ "spidev0.0", options \\ [mode: 0, speed_hz: 4000000]) do
+    # {:ok, gpio} = Circuits.GPIO.open(24, :output)
+    # Circuits.GPIO.write(gpio, 1)
     {:ok, ref} = Circuits.SPI.open(bus_name, options)
     %Icm20948Spi.SpiDevice{spi_ref: ref}
   end
@@ -27,12 +29,14 @@ defmodule Icm20948Spi.SpiDevice do
 
   @spec write(struct(), integer(), binary()) :: binary()
   def write(device, register, data) do
+    Logger.debug("write: #{inspect(<<register>> <> data)}")
     {:ok, response} = Circuits.SPI.transfer(device.spi_ref, <<register>> <> data)
     response
   end
 
   @spec read(struct(), integer(), integer()) :: binary()
   def read(device, register, bytes_to_read) do
+    Logger.debug("read. Write: #{inspect(<<register>> <> String.duplicate(<<0>>, bytes_to_read))}")
     {:ok, <<_, response::binary>>} =
       Circuits.SPI.transfer(
         device.spi_ref,

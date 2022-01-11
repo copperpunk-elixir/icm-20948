@@ -1,4 +1,5 @@
 defmodule Icm20948Spi do
+  use GenServer
   require Logger
   alias Icm20948Spi.SpiDevice, as: SpiDevice
   require Icm20948Spi.Registers, as: Reg
@@ -6,22 +7,46 @@ defmodule Icm20948Spi do
 
   @icm_who_am_i 0xEA
 
-  defstruct [:device, :accel_mpss, :gyro_rps, :data_ready]
+  def start_link(config \\ []) do
+    Logger.debug("Start #{__MODULE__}")
+    ViaUtils.Process.start_link_singular(GenServer, __MODULE__, config)
+  end
 
-  def begin(bus_name \\ "spidev1.0", options \\ []) do
-    device = SpiDevice.new(bus_name, options)
-    icm = %Icm20948Spi{device: device}
-    icm = check_id(icm)
-    icm
+  @impl GenServer
+  def init(config) do
+    bus_name = Keyword.get(config, :spi_bus_name, "spidev0.0")
+    bus_options = Keyword.get(config, :spi_bus_options, [speed_hz: 4000000, delay_us: 100])
+
+    icm = begin(bus_name, bus_options)
+
+    state = %{
+      icm: icm,
+      accel_mpss: %{},
+      gyro_rps: %{},
+      data_ready: false
+    }
+
+    # ViaUtils.Process.start_loop(
+    #   self(),
+    #   Keyword.fetch!(config, :refresh_groups_loop_interval_ms),
+    #   :refresh_groups
+    # )
+
+    Logger.debug("#{__MODULE__} started at #{inspect(self())}")
+    {:ok, state}
+  end
+
+  def begin(bus_name, options) do
+    SpiDevice.new(bus_name, options)
+    |> check_id()
   end
 
   @spec check_id(struct()) :: struct()
   def check_id(icm) do
-    device = SpiDevice.set_bank(icm.device, 0)
-    Logger.debug("device: #{inspect(device)}")
-    <<who_am_i>> = SpiDevice.read(device, Reg.agb0_reg_who_am_i(), 1)
+    icm = SpiDevice.set_bank(icm, 0)
+    Logger.debug("icm: #{inspect(icm)}")
+    <<who_am_i>> = SpiDevice.read(icm, Reg.agb0_reg_who_am_i(), 1)
     if who_am_i != @icm_who_am_i, do: raise("WHO_AM_I returned: #{who_am_i}")
-
-    %{icm | device: device}
+    icm
   end
 end
