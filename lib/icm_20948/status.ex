@@ -1,4 +1,4 @@
-defmodule Icm20948Spi.Status do
+defmodule Icm20948.Status do
   defmacro ok(), do: 0x00
   defmacro error(), do: 0x01
   defmacro not_impl(), do: 0x02

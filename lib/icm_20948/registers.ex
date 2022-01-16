@@ -1,4 +1,4 @@
-defmodule Icm20948Spi.Registers do
+defmodule Icm20948.Registers do
   defmacro reg_bank_sel(), do: 0x7F
   # Gyroscope and Accelerometer
   # User Bank 0
