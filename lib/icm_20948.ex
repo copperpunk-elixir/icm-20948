@@ -1,14 +1,18 @@
 defmodule Icm20948 do
   use GenServer
   require Logger
-  alias Icm20948.SpiDevice, as: SpiDevice
   require Icm20948.Registers, as: Reg
   require Icm20948.Status, as: Status
 
   @icm_who_am_i 0xEA
 
-  def start_link() do
+  def start_link_spi() do
     config = [bus_name: "spidev0.0", bus_options: [speed_hz: 1_000_000]]
+    start_link(config)
+  end
+
+  def start_link_spidriver() do
+    config = [bus_name: "spidriver", bus_options: [port_name: "/dev/ttyUSB0"]]
     start_link(config)
   end
 
@@ -54,23 +58,29 @@ defmodule Icm20948 do
     {:noreply, %{state | icm: icm}}
   end
 
+  @impl GenServer
+  def handle_call(:get_state, _from, state) do
+    {:reply, state, state}
+  end
+
   def begin(bus_name, bus_options) do
-    cond do
-      String.contains?(bus_name, "spi") -> SpiDevice.new(bus_name, bus_options)
-      String.contains?(bus_name, "i2c") -> raise "I2C not supported yet"
-      true -> raise "Bus name must contain 'spi' or 'i2c'"
-    end
+    Icm20948.IcmDevice.new(bus_name, bus_options)
     |> check_id()
   end
 
   @spec check_id(struct()) :: struct()
   def check_id(icm) do
-    icm_module = icm.__struct__
-    icm = apply(icm_module, :set_bank, [icm, 0])
+    icm = Icm20948.IcmDevice.set_bank(icm, 0)
     Logger.debug("icm: #{inspect(icm)}")
-    <<who_am_i>> = apply(icm_module, :read, [icm, Reg.agb0_reg_who_am_i(), 1])
+    <<who_am_i>> = Icm20948.IcmDevice.read(icm, Reg.agb0_reg_who_am_i(), 1)
     Logger.debug("whom am i: #{who_am_i}")
     if who_am_i != @icm_who_am_i, do: raise("WHO_AM_I returned: #{who_am_i}")
+    icm
+  end
+
+  @spec sw_reset(struct()) :: struct()
+  def sw_reset(icm) do
+    icm = Icm20948.IcmDevice.set_bank(icm, 0)
     icm
   end
 
@@ -78,4 +88,5 @@ defmodule Icm20948 do
   def request_check_id() do
     GenServer.cast(__MODULE__, :check_id)
   end
+
 end

@@ -1,16 +1,10 @@
-defmodule Icm20948.SpiDevice do
+defmodule Icm20948.Interface.Spi do
   require Icm20948.Registers, as: Reg
   alias Circuits.GPIO, as: Gpio
   use Bitwise
   require Logger
 
-  defstruct [
-    :spi_ref,
-    :last_bank,
-    :last_mems_bank,
-    :gyro_sf,
-    :data_ready_status
-  ]
+  defstruct [:spi_ref]
 
   @spec new() :: struct()
   def new() do
@@ -24,22 +18,7 @@ defmodule Icm20948.SpiDevice do
     # {:ok, cs_pin} = Gpio.open(25, :output)
     # Gpio.write(cs_pin, 1)
     {:ok, spi_ref} = Circuits.SPI.open(bus_name, options)
-    %Icm20948.SpiDevice{spi_ref: spi_ref}
-  end
-
-  @spec set_bank(struct(), integer()) :: struct()
-  def set_bank(device, bank) do
-    if bank > 3, do: raise("Bank of #{inspect(bank)} must be less than 4")
-
-    if bank == device.last_bank do
-      device
-    else
-      device = %{device | last_bank: bank}
-      bank = bank <<< 4 &&& 0x30
-      response = write(device, Reg.reg_bank_sel(), <<bank>>)
-      Logger.debug("set bank: #{inspect(response)}")
-      device
-    end
+    %Icm20948.Interface.Spi{spi_ref: spi_ref}
   end
 
   @spec write(struct(), integer(), binary()) :: binary()
