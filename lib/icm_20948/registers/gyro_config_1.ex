@@ -1,10 +1,12 @@
 defmodule Icm20948.Registers.GyroConfig1 do
   require Icm20948.Registers.Keys, as: Keys
-  require Icm20948.Registers.Bits, as: Bits
 
-  defstruct Keys.gyro_config_1()
-  def keys(), do: Keys.gyro_config_1()
-  def bits(), do: Bits.gyro_config_1()
+  defstruct [Keys.reserved_0(), Keys.gyro_dlpfcfg(), Keys.gyro_fs_sel(), Keys.gyro_fchoice()]
+
+  def keys(),
+    do: [Keys.reserved_0(), Keys.gyro_dlpfcfg(), Keys.gyro_fs_sel(), Keys.gyro_fchoice()]
+
+  def bits(), do: [2, 3, 2, 1]
 
   # Full Scale
   def dps250(), do: 0x00

@@ -1,5 +1,6 @@
 defmodule Icm20948 do
   use GenServer
+  use Bitwise
   require Logger
   require Icm20948.Registers, as: Reg
   require Icm20948.Status, as: Status
@@ -9,6 +10,9 @@ defmodule Icm20948 do
   alias Icm20948.IcmDevice, as: IcmDevice
 
   @icm_who_am_i 0xEA
+  def go() do
+    start_link_spidriver()
+  end
 
   def start_link_spi() do
     config = [bus_name: "spidev0.0", bus_options: [speed_hz: 1_000_000]]
@@ -16,6 +20,7 @@ defmodule Icm20948 do
   end
 
   def start_link_spidriver() do
+    RingLogger.attach()
     config = [bus_name: "spidriver", bus_options: [port_name: "/dev/ttyUSB0"]]
     start_link(config)
   end
@@ -82,6 +87,10 @@ defmodule Icm20948 do
     |> set_gyro_full_scale(Registers.GyroConfig1.dps2000())
     |> set_accel_dlpf_cfg(Registers.AccelConfig.acc_d473bw_n499bw())
     |> set_gyro_dlpf_cfg(Registers.GyroConfig1.gyr_d361bw4_n376bw5())
+    |> set_accel_dlpf_enable(true)
+    |> set_gyro_dlpf_enable(true)
+    |> set_accel_sample_rate(10)
+    |> set_gyro_sample_rate(10)
   end
 
   @spec check_id(struct()) :: struct()
@@ -136,7 +145,7 @@ defmodule Icm20948 do
       get_new_register_value(
         icm,
         Reg.PwrMgmt1,
-        %{Keys.sleep() => if(sleep, do: 1, else: 0)},
+        %{Keys.sleep() => bool_to_int(sleep)},
         Reg.agb0_reg_pwr_mgmt_1(),
         0
       )
@@ -151,14 +160,7 @@ defmodule Icm20948 do
   @spec set_low_power(struct(), boolean()) :: struct()
   def set_low_power(icm, low_power \\ false) do
     Logger.debug("Set low power: #{low_power}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 0)
-    # <<pwr_mgmt_1_value>> = IcmDevice.read(icm, Reg.agb0_reg_pwr_mgmt_1(), 1)
     low_power_value = if low_power, do: 1, else: 0
-
-    # pwr_mgmt_1_value_new =
-    #   Generic.create_struct(Reg.PwrMgmt1, pwr_mgmt_1_value)
-    #   |> Map.put(Keys.lp_en(), low_power_value)
-    #   |> Generic.register_value()
 
     {icm, pwr_mgmt_1_value} =
       get_new_register_value(
@@ -169,9 +171,6 @@ defmodule Icm20948 do
         0
       )
 
-    # Logger.debug("PwmMgmt1 value orig/new: #{pwr_mgmt_1_value}/#{pwr_mgmt_1_value_new}")
-    Logger.debug("icm: #{inspect(icm)}")
-
     IcmDevice.write(icm, Reg.agb0_reg_pwr_mgmt_1(), <<pwr_mgmt_1_value>>)
     icm
   end
@@ -179,10 +178,6 @@ defmodule Icm20948 do
   @spec set_sample_mode(struct(), boolean(), boolean(), integer()) :: struct()
   def set_sample_mode(icm, use_accel, use_gyro, sample_mode) do
     Logger.debug("Set sample mode (accel/gyro/mode): #{use_accel}/#{use_gyro}/#{sample_mode}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 0)
-    # <<lp_config_value>> = IcmDevice.read(icm, Reg.agb0_reg_lp_config(), 1)
-
-    # lp_config = Generic.create_struct(Reg.LpConfig, lp_config_value)
 
     new_lp_config =
       if use_accel do
@@ -198,162 +193,281 @@ defmodule Icm20948 do
         new_lp_config
       end
 
-    # lp_config_value_new = Generic.register_value(lp_config)
+    set_register_value(
+      icm,
+      Reg.LpConfig,
+      new_lp_config,
+      Reg.agb0_reg_lp_config(),
+      0,
+      "sample mode"
+    )
 
-    {icm, lp_config_value} =
-      get_new_register_value(
-        icm,
-        Reg.LpConfig,
-        new_lp_config,
-        Reg.agb0_reg_lp_config(),
-        0
-      )
+    # {icm, lp_config_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.LpConfig,
+    #     new_lp_config,
+    #     Reg.agb0_reg_lp_config(),
+    #     0
+    #   )
 
-    # Logger.debug("LpConfig value orig/new: #{lp_config_value}/#{lp_config_value_new}")
-    Logger.debug("icm: #{inspect(icm)}")
-
-    write_and_verify(icm, Reg.agb0_reg_lp_config(), lp_config_value, "sample mode")
-    icm
+    # write_and_verify(icm, Reg.agb0_reg_lp_config(), lp_config_value, "sample mode")
+    # icm
   end
 
   @spec set_accel_full_scale(struct(), integer()) :: struct()
   def set_accel_full_scale(icm, accel_fs_value) do
     Logger.debug("Set accel full scale: #{accel_fs_value}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 2)
-    # <<accel_config_value>> = IcmDevice.read(icm, Reg.agb2_reg_accel_config(), 1)
 
-    # accel_config =
-    #   Generic.create_struct(Reg.AccelConfig, accel_config_value)
-    #   |> Map.put(Keys.accel_fs_sel(), accel_fs_value)
-
-    # accel_config_value_new = Generic.register_value(accel_config)
-
-    # Logger.debug("AccelConfig value orig/new: #{accel_config_value}/#{accel_config_value_new}")
-
-    {icm, accel_config_value} =
-      get_new_register_value(
-        icm,
-        Reg.AccelConfig,
-        %{Keys.accel_fs_sel() => accel_fs_value},
-        Reg.agb2_reg_accel_config(),
-        2
-      )
-
-    Logger.debug("icm: #{inspect(icm)}")
-
-    write_and_verify(
+    set_register_value(
       icm,
+      Reg.AccelConfig,
+      %{Keys.accel_fs_sel() => accel_fs_value},
       Reg.agb2_reg_accel_config(),
-      accel_config_value,
+      2,
       "accel full scale"
     )
 
-    icm
+    # {icm, accel_config_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.AccelConfig,
+    #     %{Keys.accel_fs_sel() => accel_fs_value},
+    #     Reg.agb2_reg_accel_config(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_accel_config(),
+    #   accel_config_value,
+    #   "accel full scale"
+    # )
+
+    # icm
   end
 
   @spec set_gyro_full_scale(struct(), integer()) :: struct()
   def set_gyro_full_scale(icm, gyro_fs_value) do
-    # Logger.debug("Set gyro full scale: #{gyro_fs_value}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 2)
-    # <<gyro_config_value>> = IcmDevice.read(icm, Reg.agb2_reg_gyro_config_1(), 1)
+    Logger.debug("Set gyro full scale: #{gyro_fs_value}")
 
-    # gyro_config_1 =
-    #   Generic.create_struct(Reg.GyroConfig1, gyro_config_value)
-    #   |> Map.put(Keys.gyro_fs_sel(), gyro_fs_value)
-
-    # gyro_config_1_value_new = Generic.register_value(gyro_config_1)
-
-    # Logger.debug("Config value orig/new: #{gyro_config_value}/#{gyro_config_1_value_new}")
-    {icm, gyro_config_1_value} =
-      get_new_register_value(
-        icm,
-        Reg.GyroConfig1,
-        %{Keys.gyro_fs_sel() => gyro_fs_value},
-        Reg.agb2_reg_gyro_config_1(),
-        2
-      )
-
-    Logger.debug("icm: #{inspect(icm)}")
-
-    write_and_verify(
+    set_register_value(
       icm,
+      Reg.GyroConfig1,
+      %{Keys.gyro_fs_sel() => gyro_fs_value},
       Reg.agb2_reg_gyro_config_1(),
-      gyro_config_1_value,
+      2,
       "gyro full scale"
     )
 
-    icm
+    # {icm, gyro_config_1_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.GyroConfig1,
+    #     %{Keys.gyro_fs_sel() => gyro_fs_value},
+    #     Reg.agb2_reg_gyro_config_1(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_gyro_config_1(),
+    #   gyro_config_1_value,
+    #   "gyro full scale"
+    # )
+
+    # icm
   end
 
   @spec set_accel_dlpf_cfg(struct(), integer()) :: struct()
   def set_accel_dlpf_cfg(icm, accel_dlpf_cfg) do
     Logger.debug("Set accel dlpf cfg : #{accel_dlpf_cfg}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 2)
-    # <<accel_config_value>> = IcmDevice.read(icm, Reg.agb2_reg_accel_config(), 1)
 
-    # accel_config =
-    #   Generic.create_struct(Reg.AccelConfig, accel_config_value)
-    #   |> Map.put(Keys.accel_dlpfcfg(), accel_dlpf_cfg)
-
-    # accel_config_value_new = Generic.register_value(accel_config)
-
-    # Logger.debug("AccelConfig value orig/new: #{accel_config_value}/#{accel_config_value_new}")
-
-    {icm, accel_config_value} =
-      get_new_register_value(
-        icm,
-        Reg.AccelConfig,
-        %{Keys.accel_dlpfcfg() => accel_dlpf_cfg},
-        Reg.agb2_reg_accel_config(),
-        2
-      )
-
-    Logger.debug("icm: #{inspect(icm)}")
-
-    write_and_verify(
+    set_register_value(
       icm,
+      Reg.AccelConfig,
+      %{Keys.accel_dlpfcfg() => accel_dlpf_cfg},
       Reg.agb2_reg_accel_config(),
-      accel_config_value,
+      2,
       "accel dlpf cfg"
     )
 
-    icm
+    # {icm, accel_config_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.AccelConfig,
+    #     %{Keys.accel_dlpfcfg() => accel_dlpf_cfg},
+    #     Reg.agb2_reg_accel_config(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_accel_config(),
+    #   accel_config_value,
+    #   "accel dlpf cfg"
+    # )
+
+    # icm
   end
 
   @spec set_gyro_dlpf_cfg(struct(), integer()) :: struct()
   def set_gyro_dlpf_cfg(icm, gyro_dlpf_cfg) do
     Logger.debug("Set gyro dlpf cfg: #{gyro_dlpf_cfg}")
 
-    # icm = Icm20948.IcmDevice.set_bank(icm, 2)
-    # <<gyro_config_value>> = IcmDevice.read(icm, Reg.agb2_reg_gyro_config_1(), 1)
-
-    # gyro_config_1 =
-    #   Generic.create_struct(Reg.GyroConfig1, gyro_config_value)
-    #   |> Map.put(Keys.gyro_dlpfcfg(), gyro_dlpf_cfg)
-
-    # gyro_config_1_value_new = Generic.register_value(gyro_config_1)
-
-    # Logger.debug("Config value orig/new: #{gyro_config_value}/#{gyro_config_1_value_new}")
-
-    {icm, gyro_config_1_value} =
-      get_new_register_value(
-        icm,
-        Reg.GyroConfig1,
-        %{Keys.gyro_dlpfcfg() => gyro_dlpf_cfg},
-        Reg.agb2_reg_gyro_config_1(),
-        2
-      )
-
-    Logger.debug("icm: #{inspect(icm)}")
-
-    write_and_verify(
+    set_register_value(
       icm,
+      Reg.GyroConfig1,
+      %{Keys.gyro_dlpfcfg() => gyro_dlpf_cfg},
       Reg.agb2_reg_gyro_config_1(),
-      gyro_config_1_value,
-      "gyro full scale"
+      2,
+      "gyro dlpf cfg"
     )
 
-    icm
+    # {icm, gyro_config_1_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.GyroConfig1,
+    #     %{Keys.gyro_dlpfcfg() => gyro_dlpf_cfg},
+    #     Reg.agb2_reg_gyro_config_1(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_gyro_config_1(),
+    #   gyro_config_1_value,
+    #   "gyro dlpf cfg"
+    # )
+
+    # icm
+  end
+
+  @spec set_accel_dlpf_enable(struct(), boolean()) :: struct()
+  def set_accel_dlpf_enable(icm, enable_accel_dlpf) do
+    Logger.debug("Set accel dlpf enable : #{enable_accel_dlpf}")
+
+    set_register_value(
+      icm,
+      Reg.AccelConfig,
+      %{Keys.accel_fchoice() => bool_to_int(enable_accel_dlpf)},
+      Reg.agb2_reg_accel_config(),
+      2,
+      "accel dlpf enable"
+    )
+
+    # {icm, accel_config_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.AccelConfig,
+    #     %{Keys.accel_fchoice() => bool_to_int(enable_accel_dlpf)},
+    #     Reg.agb2_reg_accel_config(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_accel_config(),
+    #   accel_config_value,
+    #   "accel dlpf enable"
+    # )
+
+    # icm
+  end
+
+  @spec set_gyro_dlpf_enable(struct(), boolean()) :: struct()
+  def set_gyro_dlpf_enable(icm, enable_gyro_dlpf) do
+    Logger.debug("Set gyro dlpf enable: #{enable_gyro_dlpf}")
+
+    set_register_value(
+      icm,
+      Reg.GyroConfig1,
+      %{Keys.gyro_fchoice() => bool_to_int(enable_gyro_dlpf)},
+      Reg.agb2_reg_gyro_config_1(),
+      2,
+      "gyro dlpf enable"
+    )
+
+    # {icm, gyro_config_1_value} =
+    #   get_new_register_value(
+    #     icm,
+    #     Reg.GyroConfig1,
+    #     %{Keys.gyro_fchoice() => bool_to_int(enable_gyro_dlpf)},
+    #     Reg.agb2_reg_gyro_config_1(),
+    #     2
+    #   )
+
+    # write_and_verify(
+    #   icm,
+    #   Reg.agb2_reg_gyro_config_1(),
+    #   gyro_config_1_value,
+    #   "gyro dlpf enable"
+    # )
+
+    # icm
+  end
+
+  @spec set_accel_sample_rate(struct(), number()) :: struct()
+  def set_accel_sample_rate(icm, accel_sample_rate) do
+    Logger.debug("Set accel sample rate (desired): #{accel_sample_rate}")
+    Logger.debug("Accel ODR = 1125/(1+accel_sample_rate_div)")
+    if accel_sample_rate > 1125, do: raise("Accel sample rate must be <= 1125Hz")
+    sample_rate_div = ceil(1125 / accel_sample_rate - 1)
+    actual_sample_rate = 1125 / (1 + sample_rate_div)
+    Logger.debug("accel smplrt_div: #{sample_rate_div}")
+    Logger.debug("Actual accel sample rate: #{actual_sample_rate}")
+
+    div1 = sample_rate_div >>> 8 &&& 0xFF
+    div2 = sample_rate_div &&& 0xFF
+
+    Logger.debug("div1/div2: #{div1}/#{div2}")
+
+    set_register_value(
+      icm,
+      Reg.AccelSmplrtDiv1,
+      %{Keys.accel_smplrt_div_msb() => div1},
+      Reg.agb2_reg_accel_smplrt_div_1(),
+      2,
+      "accel smplrt div 1"
+    )
+
+    set_register_value(
+      icm,
+      Reg.AccelSmplrtDiv2,
+      %{Keys.accel_smplrt_div_lsb() => div2},
+      Reg.agb2_reg_accel_smplrt_div_2(),
+      2,
+      "accel smplrt div 2"
+    )
+  end
+
+  @spec set_gyro_sample_rate(struct(), number()) :: struct()
+  def set_gyro_sample_rate(icm, gyro_sample_rate) do
+    Logger.debug("Set gyro sample rate (desired): #{gyro_sample_rate}")
+    Logger.debug("Gyro ODR = 1100/(1+gyro_sample_rate_div)")
+    if gyro_sample_rate > 1100, do: raise("Gyro sample rate must be <= 1100")
+    sample_rate_div = ceil(1100 / gyro_sample_rate - 1)
+
+    sample_rate_div =
+      if sample_rate_div > 255 do
+        Logger.warn("Gyro sample rate div must be <= 255. Setting to 255.")
+        255
+      else
+        sample_rate_div
+      end
+
+    actual_sample_rate = 1100 / (1 + sample_rate_div)
+    Logger.debug("gyro smplrt_div: #{sample_rate_div}")
+    Logger.debug("Actual gyro sample rate: #{actual_sample_rate}")
+
+    set_register_value(
+      icm,
+      Reg.GyroSmplrtDiv,
+      %{Keys.gyro_smplrt_div() => sample_rate_div},
+      Reg.agb2_reg_gyro_smplrt_div(),
+      2,
+      "gyro smplrt div"
+    )
   end
 
   @spec request_check_id() :: atom
@@ -388,7 +502,37 @@ defmodule Icm20948 do
       |> Map.merge(updated_struct_map)
 
     new_register_value = Generic.register_value(register_struct)
-    Logger.debug("#{Module.split(struct_module)|>List.last()} value old/new: #{register_value}/#{new_register_value}")
+
+    Logger.debug(
+      "#{Module.split(struct_module) |> List.last()} value old/new: #{register_value}/#{new_register_value}"
+    )
+
     {icm, new_register_value}
+  end
+
+  @spec set_register_value(struct, module(), map(), integer(), integer(), binary()) :: struct()
+  def set_register_value(icm, register_module, new_values, register, bank, id \\ "") do
+    {icm, struct_value} =
+      get_new_register_value(
+        icm,
+        register_module,
+        new_values,
+        register,
+        bank
+      )
+
+    write_and_verify(
+      icm,
+      register,
+      struct_value,
+      id
+    )
+
+    icm
+  end
+
+  @spec bool_to_int(boolean()) :: integer()
+  def bool_to_int(value) do
+    if value, do: 1, else: 0
   end
 end

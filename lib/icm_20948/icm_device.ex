@@ -50,14 +50,14 @@ defmodule Icm20948.IcmDevice do
     if bank > 3, do: raise("Bank of #{inspect(bank)} must be less than 4")
 
     if bank == last_bank do
-      Logger.debug("Desired bank (#{bank}) is same as current bank. No action necessary.")
+      # Logger.debug("Desired bank (#{bank}) is same as current bank. No action necessary.")
       device
     else
-      Logger.debug("set bank new/old: #{bank}/#{last_bank}")
+      # Logger.debug("set bank new/old: #{bank}/#{last_bank}")
       bank = bank <<< 4 &&& 0x30
-      Logger.debug("write to bank reg: #{bank}")
-      response = apply(interface.__struct__, :write, [interface, Reg.reg_bank_sel(), <<bank>>])
-      Logger.debug("set bank: #{inspect(response)}")
+      # Logger.debug("write to bank reg: #{bank}")
+      _response = apply(interface.__struct__, :write, [interface, Reg.reg_bank_sel(), <<bank>>])
+      # Logger.debug("set bank: #{inspect(response)}")
       %{device | last_bank: bank}
     end
   end

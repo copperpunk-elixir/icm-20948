@@ -29,7 +29,7 @@ defmodule Icm20948.Interface.SpiDriver do
       :io_lib.format("./spicl ~s s w ~s u", [port_name, binary_to_string(<<register>> <> data)])
       |> :lists.flatten()
 
-    Logger.debug("flat cmd string: #{inspect(cmd_string)}")
+    # Logger.debug("flat cmd string: #{inspect(cmd_string)}")
 
     :os.cmd(cmd_string)
     ""
@@ -40,9 +40,9 @@ defmodule Icm20948.Interface.SpiDriver do
     # Required to singal a read request
     register = register ||| 0x80
 
-    Logger.debug(
-      "read. Write: #{inspect(<<register>> <> String.duplicate(<<0>>, bytes_to_read))}"
-    )
+    # Logger.debug(
+    #   "read. Write: #{inspect(<<register>> <> String.duplicate(<<0>>, bytes_to_read))}"
+    # )
 
     %{port_name: port_name} = device
 
@@ -54,10 +54,10 @@ defmodule Icm20948.Interface.SpiDriver do
       ])
       |> :lists.flatten()
 
-    Logger.debug("flat cmd string: #{inspect(cmd_string)}")
+    # Logger.debug("flat cmd string: #{inspect(cmd_string)}")
 
     response_char_list = :os.cmd(cmd_string)
-    Logger.debug("response: #{inspect(response_char_list)}")
+    # Logger.debug("response: #{inspect(response_char_list)}")
     response_to_binary(response_char_list)
   end
 

@@ -107,7 +107,7 @@ defmodule Icm20948.Registers do
   #   AGB1_REG_REG_BANK_SEL = 0x7F,
 
   #   // Bank 2
-  #   AGB2_REG_GYRO_SMPLRT_DIV = 0x00,
+  defmacro agb2_reg_gyro_smplrt_div(), do: 0x00
   defmacro agb2_reg_gyro_config_1(), do: 0x01
   #   AGB2_REG_GYRO_CONFIG_2,
   #   AGB2_REG_XG_OFFS_USRH,
@@ -118,8 +118,8 @@ defmodule Icm20948.Registers do
   #   AGB2_REG_ZG_OFFS_USRL,
   #   AGB2_REG_ODR_ALIGN_EN,
   #   // Break
-  #   AGB2_REG_ACCEL_SMPLRT_DIV_1 = 0x10,
-  #   AGB2_REG_ACCEL_SMPLRT_DIV_2,
+  defmacro agb2_reg_accel_smplrt_div_1(), do: 0x10
+  defmacro agb2_reg_accel_smplrt_div_2(), do: 0x11
   #   AGB2_REG_ACCEL_INTEL_CTRL,
   #   AGB2_REG_ACCEL_WOM_THR,
   defmacro agb2_reg_accel_config(), do: 0x14

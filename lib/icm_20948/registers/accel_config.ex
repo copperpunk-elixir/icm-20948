@@ -1,10 +1,12 @@
 defmodule Icm20948.Registers.AccelConfig do
   require Icm20948.Registers.Keys, as: Keys
-  require Icm20948.Registers.Bits, as: Bits
 
-  defstruct Keys.accel_config()
-  def keys(), do: Keys.accel_config()
-  def bits(), do: Bits.accel_config()
+  defstruct [Keys.reserved_0(), Keys.accel_dlpfcfg(), Keys.accel_fs_sel(), Keys.accel_fchoice()]
+
+  def keys(),
+    do: [Keys.reserved_0(), Keys.accel_dlpfcfg(), Keys.accel_fs_sel(), Keys.accel_fchoice()]
+
+  def bits(), do: [2, 3, 2, 1]
 
   # Full Scale
   def gpm2(), do: 0x00
