@@ -6,8 +6,8 @@ defmodule Icm20948.Registers do
   defmacro agb0_reg_lpf(), do: 0x01
   defmacro agb0_reg_user_ctrl(), do: 0x03
   defmacro agb0_reg_lp_config(), do: 0x05
-  defmacro agb0_reg_pwm_mgmt_1(), do: 0x06
-  defmacro agb0_reg_pwm_mgmt_2(), do: 0x07
+  defmacro agb0_reg_pwr_mgmt_1(), do: 0x06
+  defmacro agb0_reg_pwr_mgmt_2(), do: 0x07
   defmacro agb0_int_pin_config(), do: 0x0F
   defmacro agb0_int_enable(), do: 0x10
   defmacro agb0_int_enable_1(), do: 0x11
@@ -108,7 +108,7 @@ defmodule Icm20948.Registers do
 
   #   // Bank 2
   #   AGB2_REG_GYRO_SMPLRT_DIV = 0x00,
-  #   AGB2_REG_GYRO_CONFIG_1,
+  defmacro agb2_reg_gyro_config_1(), do: 0x01
   #   AGB2_REG_GYRO_CONFIG_2,
   #   AGB2_REG_XG_OFFS_USRH,
   #   AGB2_REG_XG_OFFS_USRL,
@@ -122,7 +122,7 @@ defmodule Icm20948.Registers do
   #   AGB2_REG_ACCEL_SMPLRT_DIV_2,
   #   AGB2_REG_ACCEL_INTEL_CTRL,
   #   AGB2_REG_ACCEL_WOM_THR,
-  #   AGB2_REG_ACCEL_CONFIG,
+  defmacro agb2_reg_accel_config(), do: 0x14
   #   AGB2_REG_ACCEL_CONFIG_2,
   #   // Break
   #   AGB2_REG_PRS_ODR_CONFIG = 0x20,

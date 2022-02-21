@@ -16,10 +16,17 @@ defmodule Icm20948.IcmDevice do
   def new(bus_name, bus_options) do
     interface =
       cond do
-        String.contains?(bus_name, "spidev") -> Icm20948.Interface.Spi.new(bus_name, bus_options)
-        String.contains?(bus_name, "i2c") -> raise "I2C not supported yet"
-        String.contains?(bus_name, "spidriver") -> Icm20948.Interface.SpiDriver.new("", bus_options)
-        true -> raise "Bus name must contain 'spi' or 'i2c'"
+        String.contains?(bus_name, "spidev") ->
+          Icm20948.Interface.Spi.new(bus_name, bus_options)
+
+        String.contains?(bus_name, "i2c") ->
+          raise "I2C not supported yet"
+
+        String.contains?(bus_name, "spidriver") ->
+          Icm20948.Interface.SpiDriver.new("", bus_options)
+
+        true ->
+          raise "Bus name must contain 'spi' or 'i2c'"
       end
 
     %Icm20948.IcmDevice{interface: interface}
@@ -27,7 +34,8 @@ defmodule Icm20948.IcmDevice do
 
   @spec write(struct(), integer(), binary()) :: binary()
   def write(device, register, data) do
-    apply(device.interface.__struct__, :write, [device, register, data])
+    %{interface: interface} = device
+    apply(interface.__struct__, :write, [interface, register, data])
   end
 
   @spec read(struct(), integer(), integer()) :: binary()
@@ -42,9 +50,12 @@ defmodule Icm20948.IcmDevice do
     if bank > 3, do: raise("Bank of #{inspect(bank)} must be less than 4")
 
     if bank == last_bank do
+      Logger.debug("Desired bank (#{bank}) is same as current bank. No action necessary.")
       device
     else
+      Logger.debug("set bank new/old: #{bank}/#{last_bank}")
       bank = bank <<< 4 &&& 0x30
+      Logger.debug("write to bank reg: #{bank}")
       response = apply(interface.__struct__, :write, [interface, Reg.reg_bank_sel(), <<bank>>])
       Logger.debug("set bank: #{inspect(response)}")
       %{device | last_bank: bank}
