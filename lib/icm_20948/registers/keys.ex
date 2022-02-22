@@ -26,4 +26,6 @@ defmodule Icm20948.Registers.Keys do
   defmacro accel_smplrt_div_lsb(), do: :accel_smplrt_div_lsb
   # Gyro Sample Rate Div
   defmacro gyro_smplrt_div(), do: :gyro_smplrt_div
+  # Int Status 1
+  defmacro raw_data_0_rdy_int(), do: :raw_data_0_rdy_into
 end

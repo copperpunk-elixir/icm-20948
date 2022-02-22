@@ -3,11 +3,17 @@ defmodule Icm20948 do
   use Bitwise
   require Logger
   require Icm20948.Registers, as: Reg
-  require Icm20948.Status, as: Status
   require Icm20948.Registers.Keys, as: Keys
-  alias Icm20948.Registers, as: Registers
-  alias Registers.Generic, as: Generic
+  alias Icm20948.Registers.Generic, as: Generic
   alias Icm20948.IcmDevice, as: IcmDevice
+
+  @accel_x_raw :accel_x_raw
+  @accel_y_raw :accel_y_raw
+  @accel_z_raw :accel_z_raw
+  @gyro_x_raw :gyro_x_raw
+  @gyro_y_raw :gyro_y_raw
+  @gyro_z_raw :gyro_z_raw
+  @temp_raw :temp_raw
 
   @icm_who_am_i 0xEA
   def go() do
@@ -63,6 +69,38 @@ defmodule Icm20948 do
   def handle_cast({:begin, bus_name, bus_options}, state) do
     Logger.debug("Begin #{bus_name} with options: #{inspect(bus_options)}")
     icm = begin(bus_name, bus_options)
+    ViaUtils.Process.start_loop(self(), 5, :check_for_data)
+    {:noreply, %{state | icm: icm}}
+  end
+
+  @impl GenServer
+  def handle_info(:check_for_data, state) do
+    Logger.debug("check")
+    {icm, data_ready} = is_data_ready(state.icm)
+
+    icm =
+      if data_ready do
+        # Logger.debug("Data is ready")
+        {icm, data_raw} = read_accel_gyro_temp(icm)
+
+        %{
+          @accel_x_raw => accel_x_raw,
+          @accel_y_raw => accel_y_raw,
+          @accel_z_raw => accel_z_raw,
+          @gyro_x_raw => gyro_x_raw,
+          @gyro_y_raw => gyro_y_raw,
+          @gyro_z_raw => gyro_z_raw,
+          @temp_raw => temp_raw
+        } = data_raw
+
+        Logger.debug("accel raw: #{accel_x_raw}/#{accel_y_raw}/#{accel_z_raw}")
+        # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
+        # Logger.debug("temp raw: #{temp_raw}")
+        icm
+      else
+        Logger.debug(".")
+        icm
+      end
 
     {:noreply, %{state | icm: icm}}
   end
@@ -82,15 +120,15 @@ defmodule Icm20948 do
 
     set_sleep(icm, false)
     |> set_low_power(false)
-    |> set_sample_mode(true, true, Registers.LpConfig.sample_mode_continuous())
-    |> set_accel_full_scale(Registers.AccelConfig.gpm4())
-    |> set_gyro_full_scale(Registers.GyroConfig1.dps2000())
-    |> set_accel_dlpf_cfg(Registers.AccelConfig.acc_d473bw_n499bw())
-    |> set_gyro_dlpf_cfg(Registers.GyroConfig1.gyr_d361bw4_n376bw5())
+    |> set_sample_mode(true, true, Reg.LpConfig.sample_mode_continuous())
+    |> set_accel_full_scale(Reg.AccelConfig.gpm4())
+    |> set_gyro_full_scale(Reg.GyroConfig1.dps2000())
+    |> set_accel_dlpf_cfg(Reg.AccelConfig.acc_d473bw_n499bw())
+    |> set_gyro_dlpf_cfg(Reg.GyroConfig1.gyr_d361bw4_n376bw5())
     |> set_accel_dlpf_enable(true)
     |> set_gyro_dlpf_enable(true)
-    |> set_accel_sample_rate(10)
-    |> set_gyro_sample_rate(10)
+    |> set_accel_sample_rate(100)
+    |> set_gyro_sample_rate(100)
   end
 
   @spec check_id(struct()) :: struct()
@@ -114,17 +152,6 @@ defmodule Icm20948 do
         0
       )
 
-    # icm = Icm20948.IcmDevice.set_bank(icm, 0)
-    # <<pwr_mgmt_1_value>> = IcmDevice.read(icm, Reg.agb0_reg_pwr_mgmt_1(), 1)
-
-    # pwr_mgmt_1_value_new =
-    #   Generic.create_struct(Reg.PwrMgmt1, pwr_mgmt_1_value)
-    #   |> Map.put(Keys.device_reset(), 1)
-    #   |> Generic.register_value()
-
-    # Logger.debug("PwmMgmt1 value orig/new: #{pwr_mgmt_1_value}/#{pwr_mgmt_1_value_new}")
-    Logger.debug("icm: #{inspect(icm)}")
-
     IcmDevice.write(icm, Reg.agb0_reg_pwr_mgmt_1(), <<pwr_mgmt_1_value>>)
     icm
   end
@@ -132,14 +159,6 @@ defmodule Icm20948 do
   @spec set_sleep(struct(), boolean()) :: struct()
   def set_sleep(icm, sleep \\ false) do
     Logger.debug("Set sleep: #{sleep}")
-    # icm = Icm20948.IcmDevice.set_bank(icm, 0)
-    # <<pwr_mgmt_1_value>> = IcmDevice.read(icm, Reg.agb0_reg_pwr_mgmt_1(), 1)
-    # sleep_value = if sleep, do: 1, else: 0
-
-    # pwr_mgmt_1_value_new =
-    #   Generic.create_struct(Reg.PwrMgmt1, pwr_mgmt_1_value)
-    #   |> Map.put(Keys.sleep(), sleep_value)
-    #   |> Generic.register_value()
 
     {icm, pwr_mgmt_1_value} =
       get_new_register_value(
@@ -149,9 +168,6 @@ defmodule Icm20948 do
         Reg.agb0_reg_pwr_mgmt_1(),
         0
       )
-
-    # Logger.debug("PwmMgmt1 value orig/new: #{pwr_mgmt_1_value}/#{pwr_mgmt_1_value_new}")
-    Logger.debug("icm: #{inspect(icm)}")
 
     IcmDevice.write(icm, Reg.agb0_reg_pwr_mgmt_1(), <<pwr_mgmt_1_value>>)
     icm
@@ -201,18 +217,6 @@ defmodule Icm20948 do
       0,
       "sample mode"
     )
-
-    # {icm, lp_config_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.LpConfig,
-    #     new_lp_config,
-    #     Reg.agb0_reg_lp_config(),
-    #     0
-    #   )
-
-    # write_and_verify(icm, Reg.agb0_reg_lp_config(), lp_config_value, "sample mode")
-    # icm
   end
 
   @spec set_accel_full_scale(struct(), integer()) :: struct()
@@ -227,24 +231,6 @@ defmodule Icm20948 do
       2,
       "accel full scale"
     )
-
-    # {icm, accel_config_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.AccelConfig,
-    #     %{Keys.accel_fs_sel() => accel_fs_value},
-    #     Reg.agb2_reg_accel_config(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_accel_config(),
-    #   accel_config_value,
-    #   "accel full scale"
-    # )
-
-    # icm
   end
 
   @spec set_gyro_full_scale(struct(), integer()) :: struct()
@@ -259,24 +245,6 @@ defmodule Icm20948 do
       2,
       "gyro full scale"
     )
-
-    # {icm, gyro_config_1_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.GyroConfig1,
-    #     %{Keys.gyro_fs_sel() => gyro_fs_value},
-    #     Reg.agb2_reg_gyro_config_1(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_gyro_config_1(),
-    #   gyro_config_1_value,
-    #   "gyro full scale"
-    # )
-
-    # icm
   end
 
   @spec set_accel_dlpf_cfg(struct(), integer()) :: struct()
@@ -291,24 +259,6 @@ defmodule Icm20948 do
       2,
       "accel dlpf cfg"
     )
-
-    # {icm, accel_config_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.AccelConfig,
-    #     %{Keys.accel_dlpfcfg() => accel_dlpf_cfg},
-    #     Reg.agb2_reg_accel_config(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_accel_config(),
-    #   accel_config_value,
-    #   "accel dlpf cfg"
-    # )
-
-    # icm
   end
 
   @spec set_gyro_dlpf_cfg(struct(), integer()) :: struct()
@@ -323,24 +273,6 @@ defmodule Icm20948 do
       2,
       "gyro dlpf cfg"
     )
-
-    # {icm, gyro_config_1_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.GyroConfig1,
-    #     %{Keys.gyro_dlpfcfg() => gyro_dlpf_cfg},
-    #     Reg.agb2_reg_gyro_config_1(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_gyro_config_1(),
-    #   gyro_config_1_value,
-    #   "gyro dlpf cfg"
-    # )
-
-    # icm
   end
 
   @spec set_accel_dlpf_enable(struct(), boolean()) :: struct()
@@ -355,24 +287,6 @@ defmodule Icm20948 do
       2,
       "accel dlpf enable"
     )
-
-    # {icm, accel_config_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.AccelConfig,
-    #     %{Keys.accel_fchoice() => bool_to_int(enable_accel_dlpf)},
-    #     Reg.agb2_reg_accel_config(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_accel_config(),
-    #   accel_config_value,
-    #   "accel dlpf enable"
-    # )
-
-    # icm
   end
 
   @spec set_gyro_dlpf_enable(struct(), boolean()) :: struct()
@@ -387,24 +301,6 @@ defmodule Icm20948 do
       2,
       "gyro dlpf enable"
     )
-
-    # {icm, gyro_config_1_value} =
-    #   get_new_register_value(
-    #     icm,
-    #     Reg.GyroConfig1,
-    #     %{Keys.gyro_fchoice() => bool_to_int(enable_gyro_dlpf)},
-    #     Reg.agb2_reg_gyro_config_1(),
-    #     2
-    #   )
-
-    # write_and_verify(
-    #   icm,
-    #   Reg.agb2_reg_gyro_config_1(),
-    #   gyro_config_1_value,
-    #   "gyro dlpf enable"
-    # )
-
-    # icm
   end
 
   @spec set_accel_sample_rate(struct(), number()) :: struct()
@@ -470,6 +366,35 @@ defmodule Icm20948 do
     )
   end
 
+  @spec is_data_ready(struct()) :: tuple()
+  def is_data_ready(icm) do
+    {icm, int_status_1} = get_register_struct(icm, Reg.IntStatus1, Reg.agb0_reg_int_status_1(), 0)
+
+    {icm, Map.fetch!(int_status_1, Keys.raw_data_0_rdy_int()) == 1}
+  end
+
+  @spec read_accel_gyro_temp(struct()) :: tuple()
+  def read_accel_gyro_temp(icm) do
+    icm = Icm20948.IcmDevice.set_bank(icm, 0)
+
+    <<accel_x::binary-size(2), accel_y::binary-size(2), accel_z::binary-size(2),
+      gyro_x::binary-size(2), gyro_y::binary-size(2), gyro_z::binary-size(2),
+      temp::binary-size(2)>> =
+      IcmDevice.read(icm, Reg.agb0_reg_accel_xout_h(), 14)
+
+    raw_output = %{
+      @accel_x_raw => ViaUtils.Math.twos_comp_16_bin(accel_x),
+      @accel_y_raw => ViaUtils.Math.twos_comp_16_bin(accel_y),
+      @accel_z_raw => ViaUtils.Math.twos_comp_16_bin(accel_z),
+      @gyro_x_raw => ViaUtils.Math.twos_comp_16_bin(gyro_x),
+      @gyro_y_raw => ViaUtils.Math.twos_comp_16_bin(gyro_y),
+      @gyro_z_raw => ViaUtils.Math.twos_comp_16_bin(gyro_z),
+      @temp_raw => ViaUtils.Math.twos_comp_16_bin(temp)
+    }
+
+    {icm, raw_output}
+  end
+
   @spec request_check_id() :: atom
   def request_check_id() do
     GenServer.cast(__MODULE__, :check_id)
@@ -492,20 +417,23 @@ defmodule Icm20948 do
     :ok
   end
 
-  @spec get_new_register_value(struct(), module(), map(), integer(), integer()) :: tuple()
-  def get_new_register_value(icm, struct_module, updated_struct_map, register, register_bank) do
+  @spec get_register_struct(struct(), module(), integer(), integer()) :: tuple()
+  def get_register_struct(icm, struct_module, register, register_bank) do
     icm = Icm20948.IcmDevice.set_bank(icm, register_bank)
     <<register_value>> = IcmDevice.read(icm, register, 1)
 
-    register_struct =
-      Generic.create_struct(struct_module, register_value)
-      |> Map.merge(updated_struct_map)
+    # Logger.debug("#{Module.split(struct_module) |> List.last()} currnet value: #{register_value}")
+    register_struct = Generic.create_struct(struct_module, register_value)
+    {icm, register_struct}
+  end
 
-    new_register_value = Generic.register_value(register_struct)
+  @spec get_new_register_value(struct(), module(), map(), integer(), integer()) :: tuple()
+  def get_new_register_value(icm, struct_module, updated_struct_map, register, register_bank) do
+    {icm, register_struct} = get_register_struct(icm, struct_module, register, register_bank)
 
-    Logger.debug(
-      "#{Module.split(struct_module) |> List.last()} value old/new: #{register_value}/#{new_register_value}"
-    )
+    new_register_value = Generic.register_value(Map.merge(register_struct, updated_struct_map))
+
+    Logger.debug("#{Module.split(struct_module) |> List.last()} new value: #{new_register_value}")
 
     {icm, new_register_value}
   end

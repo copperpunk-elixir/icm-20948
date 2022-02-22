@@ -9,7 +9,9 @@ defmodule Icm20948.IcmDevice do
     :last_bank,
     :last_mems_bank,
     :gyro_sf,
-    :data_ready_status
+    :data_ready_status,
+    :accel_scalar,
+    :gyro_scalar
   ]
 
   @spec new(binary(), list()) :: struct()
@@ -60,5 +62,10 @@ defmodule Icm20948.IcmDevice do
       # Logger.debug("set bank: #{inspect(response)}")
       %{device | last_bank: bank}
     end
+  end
+
+  @spec set_accel_scalar(struct(), integer()) ::struct()
+  def set_accel_scalar(device, accel_fs) do
+
   end
 end
