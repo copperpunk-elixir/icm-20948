@@ -9,10 +9,10 @@ defmodule Icm20948.Registers.AccelConfig do
   def bits(), do: [2, 3, 2, 1]
 
   # Full Scale
-  def gpm2(), do: 0x00
-  def gpm4(), do: 0x01
-  def gpm8(), do: 0x02
-  def gpm16(), do: 0x03
+  defmacro gpm2(), do: 0x00
+  defmacro gpm4(), do: 0x01
+  defmacro gpm8(), do: 0x02
+  defmacro gpm16(), do: 0x03
 
   # DLPF CFG
   def acc_d246bw_n265bw(), do: 0x00
