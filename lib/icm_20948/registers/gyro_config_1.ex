@@ -9,10 +9,10 @@ defmodule Icm20948.Registers.GyroConfig1 do
   def bits(), do: [2, 3, 2, 1]
 
   # Full Scale
-  def dps250(), do: 0x00
-  def dps500(), do: 0x01
-  def dps1000(), do: 0x02
-  def dps2000(), do: 0x03
+  defmacro dps250(), do: 0x00
+  defmacro dps500(), do: 0x01
+  defmacro dps1000(), do: 0x02
+  defmacro dps2000(), do: 0x03
 
   # DLPF CFG
   def gyr_d196bw6_n229bw8(), do: 0x00

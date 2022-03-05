@@ -1,6 +1,10 @@
 defmodule Icm20948.IcmDevice do
   require Icm20948.Registers, as: Reg
   alias Circuits.GPIO, as: Gpio
+  require Icm20948.Registers.AccelConfig, as: AC
+  require Icm20948.Registers.GyroConfig1, as: GC
+  require ViaUtils.Constants, as: VC
+
   use Bitwise
   require Logger
 
@@ -10,8 +14,8 @@ defmodule Icm20948.IcmDevice do
     :last_mems_bank,
     :gyro_sf,
     :data_ready_status,
-    :accel_scalar,
-    :gyro_scalar
+    :accel_divisor,
+    :gyro_divisor
   ]
 
   @spec new(binary(), list()) :: struct()
@@ -64,8 +68,49 @@ defmodule Icm20948.IcmDevice do
     end
   end
 
-  @spec set_accel_scalar(struct(), integer()) ::struct()
-  def set_accel_scalar(device, accel_fs) do
+  @spec set_accel_divisor(struct(), integer()) :: struct()
+  def set_accel_divisor(device, accel_fs) do
+    accel_divisor =
+      case accel_fs do
+        AC.gpm2() -> 16384 / VC.gravity()
+        AC.gpm4() -> 8192 / VC.gravity()
+        AC.gpm8() -> 4096 / VC.gravity()
+        AC.gpm16() -> 2048 / VC.gravity()
+        true -> raise "Improper Accel FS value used: #{inspect(accel_fs)}"
+      end
 
+    Logger.debug("Set accel divisor to: #{accel_divisor}")
+    %{device | accel_divisor: accel_divisor}
+  end
+
+  @spec set_gyro_divisor(struct(), integer()) :: struct()
+  def set_gyro_divisor(device, gyro_fs) do
+    gyro_divisor =
+      case gyro_fs do
+        GC.dps250() -> 131 / VC.deg2rad()
+        GC.dps500() -> 65.5 / VC.deg2rad()
+        GC.dps1000() -> 32.8 / VC.deg2rad()
+        GC.dps2000() -> 16.4 / VC.deg2rad()
+        true -> raise "Improper Gyro FS value used: #{inspect(gyro_fs)}"
+      end
+
+    Logger.debug("Set gyro divisor to: #{gyro_divisor}")
+
+    %{device | gyro_divisor: gyro_divisor}
+  end
+
+  @spec get_accel_mpss(struct(), number()) :: number()
+  def get_accel_mpss(device, accel_raw) do
+    accel_raw / device.accel_divisor
+  end
+
+  @spec get_gyro_rps(struct(), number()) :: number()
+  def get_gyro_rps(device, gyro_raw) do
+    gyro_raw / device.gyro_divisor
+  end
+
+  @spec get_temp_c(number()) :: number()
+  def get_temp_c(temp_raw) do
+    (temp_raw - 21) / 333.87 + 21
   end
 end

@@ -4,6 +4,9 @@ defmodule Icm20948 do
   require Logger
   require Icm20948.Registers, as: Reg
   require Icm20948.Registers.Keys, as: Keys
+  require Icm20948.Registers.AccelConfig
+  require Icm20948.Registers.GyroConfig1
+  require ViaUtils.Constants, as: VC
   alias Icm20948.Registers.Generic, as: Generic
   alias Icm20948.IcmDevice, as: IcmDevice
 
@@ -75,7 +78,6 @@ defmodule Icm20948 do
 
   @impl GenServer
   def handle_info(:check_for_data, state) do
-    Logger.debug("check")
     {icm, data_ready} = is_data_ready(state.icm)
 
     icm =
@@ -93,9 +95,29 @@ defmodule Icm20948 do
           @temp_raw => temp_raw
         } = data_raw
 
-        Logger.debug("accel raw: #{accel_x_raw}/#{accel_y_raw}/#{accel_z_raw}")
+        accel_x_mpss = IcmDevice.get_accel_mpss(icm, accel_x_raw)
+        accel_y_mpss = IcmDevice.get_accel_mpss(icm, accel_y_raw)
+        accel_z_mpss = IcmDevice.get_accel_mpss(icm, accel_z_raw)
+        gyro_x_rps = IcmDevice.get_gyro_rps(icm, gyro_x_raw)
+        gyro_y_rps = IcmDevice.get_gyro_rps(icm, gyro_y_raw)
+        gyro_z_rps = IcmDevice.get_gyro_rps(icm, gyro_z_raw)
+        temp_c = IcmDevice.get_temp_c(temp_raw)
+
+        # Logger.debug(
+        #   "accel raw: #{ViaUtils.Format.eftb_list([accel_x_raw, accel_y_raw, accel_z_raw], 1)}"
+        # )
+
         # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
         # Logger.debug("temp raw: #{temp_raw}")
+        Logger.debug(
+          "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
+        )
+
+        # Logger.debug(
+        #   "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
+        # )
+
+        # Logger.debug("temp C: #{temp_c}")
         icm
       else
         Logger.debug(".")
@@ -231,6 +253,7 @@ defmodule Icm20948 do
       2,
       "accel full scale"
     )
+    |> IcmDevice.set_accel_divisor(accel_fs_value)
   end
 
   @spec set_gyro_full_scale(struct(), integer()) :: struct()
@@ -245,6 +268,7 @@ defmodule Icm20948 do
       2,
       "gyro full scale"
     )
+    |> IcmDevice.set_gyro_divisor(gyro_fs_value)
   end
 
   @spec set_accel_dlpf_cfg(struct(), integer()) :: struct()
@@ -375,12 +399,11 @@ defmodule Icm20948 do
 
   @spec read_accel_gyro_temp(struct()) :: tuple()
   def read_accel_gyro_temp(icm) do
-    icm = Icm20948.IcmDevice.set_bank(icm, 0)
+    icm = IcmDevice.set_bank(icm, 0)
 
     <<accel_x::binary-size(2), accel_y::binary-size(2), accel_z::binary-size(2),
       gyro_x::binary-size(2), gyro_y::binary-size(2), gyro_z::binary-size(2),
-      temp::binary-size(2)>> =
-      IcmDevice.read(icm, Reg.agb0_reg_accel_xout_h(), 14)
+      temp::binary-size(2)>> = IcmDevice.read(icm, Reg.agb0_reg_accel_xout_h(), 14)
 
     raw_output = %{
       @accel_x_raw => ViaUtils.Math.twos_comp_16_bin(accel_x),
