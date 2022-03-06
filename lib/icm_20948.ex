@@ -16,6 +16,9 @@ defmodule Icm20948 do
   @gyro_x_raw :gyro_x_raw
   @gyro_y_raw :gyro_y_raw
   @gyro_z_raw :gyro_z_raw
+@accel_x_mpss :accel_x_mpss
+@accel_y_mpss :accel_y_mpss
+@accel_z_mpss :accel_z_mpss
   @temp_raw :temp_raw
 
   @icm_who_am_i 0xEA
@@ -50,7 +53,8 @@ defmodule Icm20948 do
       interrupt_ref: nil,
       accel_mpss: %{},
       gyro_rps: %{},
-      data_ready: false
+      data_ready: false,
+	data_count: 0
     }
 
     Logger.debug("#{__MODULE__} started at #{inspect(self())}")
@@ -82,25 +86,35 @@ defmodule Icm20948 do
   end
 
   @impl GenServer
-  def handle_info({:circuits_gpio, @interrupt_pin, timestamp_ms, 0}, state) do
-    Logger.debug("Data ready Interrupt: #{timestamp_ms}")
-    icm = get_new_data(state.icm)
-    {:noreply, %{state | icm: icm}}
+  def handle_info({:circuits_gpio, @interrupt_pin, timestamp_ns, 0}, state) do
+data_count = if ((state.data_count + 1) == 100) do
+
+    Logger.debug("Data ready Interrupt: #{ViaUtils.Format.eftb(timestamp_ns/1.0e6,2)}")
+Logger.debug(
+      "accel mpss: #{ViaUtils.Format.eftb_map(state.accel_mpss, 3)}"
+    )
+#
+0
+else
+state.data_count + 1
+end
+    {icm, accel_mpss} = get_new_data(state.icm)
+    {:noreply, %{state | icm: icm, accel_mpss: accel_mpss, data_count: data_count}}
   end
 
   @impl GenServer
   def handle_info(:check_for_data, state) do
     {icm, data_ready} = is_data_ready(state.icm)
 
-    icm =
+    {icm, accel_mpss} =
       if data_ready do
         get_new_data(icm)
       else
         # Logger.debug(".")
-        icm
+        {icm, state.accel_mpss}
       end
 
-    {:noreply, %{state | icm: icm}}
+    {:noreply, %{state | icm: icm, accel_mpss: accel_mpss}}
   end
 
   @impl GenServer
@@ -136,16 +150,16 @@ defmodule Icm20948 do
 
     # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
     # Logger.debug("temp raw: #{temp_raw}")
-    Logger.debug(
-      "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
-    )
+#    Logger.debug(
+ #     "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
+  #  )
 
-    Logger.debug(
-      "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
-    )
+   # Logger.debug(
+    #  "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
+   # )
 
     # Logger.debug("temp C: #{temp_c}")
-    icm
+    {icm, %{@accel_x_mpss => accel_x_mpss, @accel_y_mpss => accel_y_mpss, @accel_z_mpss => accel_z_mpss}}
   end
 
   def begin(bus_name, bus_options) do
@@ -165,8 +179,8 @@ defmodule Icm20948 do
     |> set_gyro_dlpf_cfg(Reg.GyroConfig1.gyr_d361bw4_n376bw5())
     |> set_accel_dlpf_enable(true)
     |> set_gyro_dlpf_enable(true)
-    |> set_accel_smplrt_div(0)
-    |> set_gyro_smplrt_div(0)
+    |> set_accel_smplrt_div(10)
+    |> set_gyro_smplrt_div(10)
     |> set_raw_data_ready_interrupt(true)
   end
 
