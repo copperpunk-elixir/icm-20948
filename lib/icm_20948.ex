@@ -120,7 +120,7 @@ defmodule Icm20948 do
         # Logger.debug("temp C: #{temp_c}")
         icm
       else
-        Logger.debug(".")
+        #Logger.debug(".")
         icm
       end
 
@@ -149,8 +149,8 @@ defmodule Icm20948 do
     |> set_gyro_dlpf_cfg(Reg.GyroConfig1.gyr_d361bw4_n376bw5())
     |> set_accel_dlpf_enable(true)
     |> set_gyro_dlpf_enable(true)
-    |> set_accel_sample_rate(100)
-    |> set_gyro_sample_rate(100)
+    |> set_accel_sample_rate(50)
+    |> set_gyro_sample_rate(400)
   end
 
   @spec check_id(struct()) :: struct()
