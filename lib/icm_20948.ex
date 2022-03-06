@@ -120,7 +120,7 @@ defmodule Icm20948 do
         # Logger.debug("temp C: #{temp_c}")
         icm
       else
-        #Logger.debug(".")
+        # Logger.debug(".")
         icm
       end
 
@@ -366,7 +366,6 @@ defmodule Icm20948 do
     )
   end
 
-
   @spec set_gyro_sample_rate(struct(), number()) :: struct()
   def set_gyro_sample_rate(icm, gyro_sample_rate) do
     Logger.debug("Set gyro sample rate (desired): #{gyro_sample_rate}")
@@ -377,7 +376,7 @@ defmodule Icm20948 do
     set_gyro_smplrt_div(icm, sample_rate_div)
   end
 
-@spec set_gyro_smplrt_div(struct(), integer()) :: struct()
+  @spec set_gyro_smplrt_div(struct(), integer()) :: struct()
   def set_gyro_smplrt_div(icm, sample_rate_div) do
     sample_rate_div =
       if sample_rate_div > 255 do
@@ -400,7 +399,6 @@ defmodule Icm20948 do
       "gyro smplrt div"
     )
   end
-
 
   @spec is_data_ready(struct()) :: tuple()
   def is_data_ready(icm) do
