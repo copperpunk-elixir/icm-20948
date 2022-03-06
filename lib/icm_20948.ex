@@ -19,6 +19,7 @@ defmodule Icm20948 do
   @temp_raw :temp_raw
 
   @icm_who_am_i 0xEA
+  @interrupt_pin 17
   def go() do
     start_link_spidriver()
   end
@@ -46,19 +47,15 @@ defmodule Icm20948 do
 
     state = %{
       icm: nil,
+      interrupt_ref: nil,
       accel_mpss: %{},
       gyro_rps: %{},
       data_ready: false
     }
 
-    # ViaUtils.Process.start_loop(
-    #   self(),
-    #   Keyword.fetch!(config, :refresh_groups_loop_interval_ms),
-    #   :refresh_groups
-    # )
-
     Logger.debug("#{__MODULE__} started at #{inspect(self())}")
     GenServer.cast(__MODULE__, {:begin, bus_name, bus_options})
+    GenServer.cast(__MODULE__, :open_gpio)
     {:ok, state}
   end
 
@@ -72,7 +69,22 @@ defmodule Icm20948 do
   def handle_cast({:begin, bus_name, bus_options}, state) do
     Logger.debug("Begin #{bus_name} with options: #{inspect(bus_options)}")
     icm = begin(bus_name, bus_options)
-    ViaUtils.Process.start_loop(self(), 2, :check_for_data)
+    # ViaUtils.Process.start_loop(self(), 2, :check_for_data)
+    {:noreply, %{state | icm: icm}}
+  end
+
+  @impl GenServer
+  def handle_cast(:open_gpio, state) do
+    Logger.debug("Open #{@interrupt_pin} pin as input, set interrupt")
+    {:ok, gpio_ref} = Circuits.GPIO.open(@interrupt_pin, :input)
+    Circuits.GPIO.set_interrupts(gpio_ref, :falling)
+    {:noreply, %{state | interrupt_ref: gpio_ref}}
+  end
+
+  @impl GenServer
+  def handle_info({:circuits_gpio, @interrupt_pin, timestamp_ms, 0}, state) do
+    Logger.debug("Data ready Interrupt: #{timestamp_ms}")
+    icm = get_new_data(state.icm)
     {:noreply, %{state | icm: icm}}
   end
 
@@ -82,43 +94,7 @@ defmodule Icm20948 do
 
     icm =
       if data_ready do
-        # Logger.debug("Data is ready")
-        {icm, data_raw} = read_accel_gyro_temp(icm)
-
-        %{
-          @accel_x_raw => accel_x_raw,
-          @accel_y_raw => accel_y_raw,
-          @accel_z_raw => accel_z_raw,
-          @gyro_x_raw => gyro_x_raw,
-          @gyro_y_raw => gyro_y_raw,
-          @gyro_z_raw => gyro_z_raw,
-          @temp_raw => temp_raw
-        } = data_raw
-
-        accel_x_mpss = IcmDevice.get_accel_mpss(icm, accel_x_raw)
-        accel_y_mpss = IcmDevice.get_accel_mpss(icm, accel_y_raw)
-        accel_z_mpss = IcmDevice.get_accel_mpss(icm, accel_z_raw)
-        gyro_x_rps = IcmDevice.get_gyro_rps(icm, gyro_x_raw)
-        gyro_y_rps = IcmDevice.get_gyro_rps(icm, gyro_y_raw)
-        gyro_z_rps = IcmDevice.get_gyro_rps(icm, gyro_z_raw)
-        temp_c = IcmDevice.get_temp_c(temp_raw)
-
-        # Logger.debug(
-        #   "accel raw: #{ViaUtils.Format.eftb_list([accel_x_raw, accel_y_raw, accel_z_raw], 1)}"
-        # )
-
-        # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
-        # Logger.debug("temp raw: #{temp_raw}")
-        Logger.debug(
-          "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
-        )
-
-        Logger.debug(
-          "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
-        )
-
-        # Logger.debug("temp C: #{temp_c}")
-        icm
+        get_new_data(icm)
       else
         # Logger.debug(".")
         icm
@@ -130,6 +106,46 @@ defmodule Icm20948 do
   @impl GenServer
   def handle_call(:get_state, _from, state) do
     {:reply, state, state}
+  end
+
+  def get_new_data(icm) do
+    # Logger.debug("Data is ready")
+    {icm, data_raw} = read_accel_gyro_temp(icm)
+
+    %{
+      @accel_x_raw => accel_x_raw,
+      @accel_y_raw => accel_y_raw,
+      @accel_z_raw => accel_z_raw,
+      @gyro_x_raw => gyro_x_raw,
+      @gyro_y_raw => gyro_y_raw,
+      @gyro_z_raw => gyro_z_raw,
+      @temp_raw => temp_raw
+    } = data_raw
+
+    accel_x_mpss = IcmDevice.get_accel_mpss(icm, accel_x_raw)
+    accel_y_mpss = IcmDevice.get_accel_mpss(icm, accel_y_raw)
+    accel_z_mpss = IcmDevice.get_accel_mpss(icm, accel_z_raw)
+    gyro_x_rps = IcmDevice.get_gyro_rps(icm, gyro_x_raw)
+    gyro_y_rps = IcmDevice.get_gyro_rps(icm, gyro_y_raw)
+    gyro_z_rps = IcmDevice.get_gyro_rps(icm, gyro_z_raw)
+    temp_c = IcmDevice.get_temp_c(temp_raw)
+
+    # Logger.debug(
+    #   "accel raw: #{ViaUtils.Format.eftb_list([accel_x_raw, accel_y_raw, accel_z_raw], 1)}"
+    # )
+
+    # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
+    # Logger.debug("temp raw: #{temp_raw}")
+    Logger.debug(
+      "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
+    )
+
+    Logger.debug(
+      "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
+    )
+
+    # Logger.debug("temp C: #{temp_c}")
+    icm
   end
 
   def begin(bus_name, bus_options) do
@@ -151,6 +167,7 @@ defmodule Icm20948 do
     |> set_gyro_dlpf_enable(true)
     |> set_accel_smplrt_div(0)
     |> set_gyro_smplrt_div(0)
+    |> set_raw_data_ready_interrupt(true)
   end
 
   @spec check_id(struct()) :: struct()
@@ -198,13 +215,12 @@ defmodule Icm20948 do
   @spec set_low_power(struct(), boolean()) :: struct()
   def set_low_power(icm, low_power \\ false) do
     Logger.debug("Set low power: #{low_power}")
-    low_power_value = if low_power, do: 1, else: 0
 
     {icm, pwr_mgmt_1_value} =
       get_new_register_value(
         icm,
         Reg.PwrMgmt1,
-        %{Keys.lp_en() => low_power_value},
+        %{Keys.lp_en() => bool_to_int(low_power)},
         Reg.agb0_reg_pwr_mgmt_1(),
         0
       )
@@ -398,6 +414,21 @@ defmodule Icm20948 do
       2,
       "gyro smplrt div"
     )
+  end
+
+  @spec set_raw_data_ready_interrupt(struct(), boolean()) :: struct()
+  def set_raw_data_ready_interrupt(icm, enable_interrupt) do
+    {icm, int_status_1_value} =
+      get_new_register_value(
+        icm,
+        Reg.IntStatus1,
+        %{Keys.raw_data_0_rdy_int() => bool_to_int(enable_interrupt)},
+        Reg.agb0_reg_int_status_1(),
+        0
+      )
+
+    IcmDevice.write(icm, Reg.agb0_reg_int_status_1(), <<int_status_1_value>>)
+    icm
   end
 
   @spec is_data_ready(struct()) :: tuple()
