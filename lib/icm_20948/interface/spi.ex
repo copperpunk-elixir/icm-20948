@@ -23,7 +23,7 @@ defmodule Icm20948.Interface.Spi do
 
   @spec write(struct(), integer(), binary()) :: binary()
   def write(device, register, data) do
-    Logger.debug("write: #{inspect(<<register>> <> data)}")
+    # Logger.debug("write: #{inspect(<<register>> <> data)}")
 
     %{spi_ref: spi_ref} = device
     # Kick the tires
@@ -36,9 +36,9 @@ defmodule Icm20948.Interface.Spi do
     # Required to singal a read request
     register = register ||| 0x80
 
-    Logger.debug(
-      "read. Write: #{inspect(<<register>> <> String.duplicate(<<0>>, bytes_to_read))}"
-    )
+    # Logger.debug(
+    #   "read. Write: #{inspect(<<register>> <> String.duplicate(<<0>>, bytes_to_read))}"
+    # )
 
     %{spi_ref: spi_ref} = device
 
@@ -48,7 +48,7 @@ defmodule Icm20948.Interface.Spi do
         <<register>> <> String.duplicate(<<0>>, bytes_to_read)
       )
 
-    Logger.debug("response: #{inspect(response)}")
+    # Logger.debug("response: #{inspect(response)}")
     response
   end
 end

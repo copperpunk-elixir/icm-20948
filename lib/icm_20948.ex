@@ -120,7 +120,7 @@ defmodule Icm20948 do
         # Logger.debug("temp C: #{temp_c}")
         icm
       else
-        Logger.debug(".")
+        #Logger.debug(".")
         icm
       end
 
@@ -149,8 +149,8 @@ defmodule Icm20948 do
     |> set_gyro_dlpf_cfg(Reg.GyroConfig1.gyr_d361bw4_n376bw5())
     |> set_accel_dlpf_enable(true)
     |> set_gyro_dlpf_enable(true)
-    |> set_accel_sample_rate(100)
-    |> set_gyro_sample_rate(100)
+    |> set_accel_smplrt_div(0)
+    |> set_gyro_smplrt_div(255)
   end
 
   @spec check_id(struct()) :: struct()
@@ -337,6 +337,11 @@ defmodule Icm20948 do
     Logger.debug("accel smplrt_div: #{sample_rate_div}")
     Logger.debug("Actual accel sample rate: #{actual_sample_rate}")
 
+    set_accel_smplrt_div(icm, sample_rate_div)
+  end
+
+  @spec set_accel_smplrt_div(struct(), integer()) :: struct()
+  def set_accel_smplrt_div(icm, sample_rate_div) do
     div1 = sample_rate_div >>> 8 &&& 0xFF
     div2 = sample_rate_div &&& 0xFF
 
@@ -361,6 +366,7 @@ defmodule Icm20948 do
     )
   end
 
+
   @spec set_gyro_sample_rate(struct(), number()) :: struct()
   def set_gyro_sample_rate(icm, gyro_sample_rate) do
     Logger.debug("Set gyro sample rate (desired): #{gyro_sample_rate}")
@@ -368,6 +374,11 @@ defmodule Icm20948 do
     if gyro_sample_rate > 1100, do: raise("Gyro sample rate must be <= 1100")
     sample_rate_div = ceil(1100 / gyro_sample_rate - 1)
 
+    set_gyro_smplrt_div(icm, sample_rate_div)
+  end
+
+@spec set_gyro_smplrt_div(struct(), integer()) :: struct()
+  def set_gyro_smplrt_div(icm, sample_rate_div) do
     sample_rate_div =
       if sample_rate_div > 255 do
         Logger.warn("Gyro sample rate div must be <= 255. Setting to 255.")
@@ -389,6 +400,7 @@ defmodule Icm20948 do
       "gyro smplrt div"
     )
   end
+
 
   @spec is_data_ready(struct()) :: tuple()
   def is_data_ready(icm) do
