@@ -72,7 +72,7 @@ defmodule Icm20948 do
   def handle_cast({:begin, bus_name, bus_options}, state) do
     Logger.debug("Begin #{bus_name} with options: #{inspect(bus_options)}")
     icm = begin(bus_name, bus_options)
-    ViaUtils.Process.start_loop(self(), 5, :check_for_data)
+    ViaUtils.Process.start_loop(self(), 2, :check_for_data)
     {:noreply, %{state | icm: icm}}
   end
 
@@ -113,14 +113,14 @@ defmodule Icm20948 do
           "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
         )
 
-        # Logger.debug(
-        #   "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
-        # )
+        Logger.debug(
+          "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
+        )
 
         # Logger.debug("temp C: #{temp_c}")
         icm
       else
-        #Logger.debug(".")
+        # Logger.debug(".")
         icm
       end
 
@@ -150,7 +150,7 @@ defmodule Icm20948 do
     |> set_accel_dlpf_enable(true)
     |> set_gyro_dlpf_enable(true)
     |> set_accel_smplrt_div(0)
-    |> set_gyro_smplrt_div(255)
+    |> set_gyro_smplrt_div(0)
   end
 
   @spec check_id(struct()) :: struct()
@@ -366,7 +366,6 @@ defmodule Icm20948 do
     )
   end
 
-
   @spec set_gyro_sample_rate(struct(), number()) :: struct()
   def set_gyro_sample_rate(icm, gyro_sample_rate) do
     Logger.debug("Set gyro sample rate (desired): #{gyro_sample_rate}")
@@ -377,7 +376,7 @@ defmodule Icm20948 do
     set_gyro_smplrt_div(icm, sample_rate_div)
   end
 
-@spec set_gyro_smplrt_div(struct(), integer()) :: struct()
+  @spec set_gyro_smplrt_div(struct(), integer()) :: struct()
   def set_gyro_smplrt_div(icm, sample_rate_div) do
     sample_rate_div =
       if sample_rate_div > 255 do
@@ -400,7 +399,6 @@ defmodule Icm20948 do
       "gyro smplrt div"
     )
   end
-
 
   @spec is_data_ready(struct()) :: tuple()
   def is_data_ready(icm) do

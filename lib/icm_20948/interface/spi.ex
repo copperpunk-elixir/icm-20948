@@ -9,7 +9,7 @@ defmodule Icm20948.Interface.Spi do
   @spec new() :: struct()
   def new() do
     bus_name = "spidev0.0"
-    options = [mode: 0, speed_hz: 1_000_000]
+    options = [mode: 0, speed_hz: 4_000_000]
     new(bus_name, options)
   end
 
