@@ -8,11 +8,11 @@ defmodule Icm20948.Registers do
   defmacro agb0_reg_lp_config(), do: 0x05
   defmacro agb0_reg_pwr_mgmt_1(), do: 0x06
   defmacro agb0_reg_pwr_mgmt_2(), do: 0x07
-  defmacro agb0_int_pin_config(), do: 0x0F
-  defmacro agb0_int_enable(), do: 0x10
-  defmacro agb0_int_enable_1(), do: 0x11
-  defmacro agb0_int_enable_2(), do: 0x12
-  defmacro agb0_int_enable_3(), do: 0x13
+  defmacro agb0_reg_int_pin_config(), do: 0x0F
+  defmacro agb0_reg_int_enable(), do: 0x10
+  defmacro agb0_reg_int_enable_1(), do: 0x11
+  defmacro agb0_reg_int_enable_2(), do: 0x12
+  defmacro agb0_reg_int_enable_3(), do: 0x13
   # AGB0_REG_I2C_MST_STATUS = 0x17,
   # AGB0_REG_DMP_INT_STATUS,
   defmacro agb0_reg_int_status(), do: 0x19
