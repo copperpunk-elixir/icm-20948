@@ -16,9 +16,9 @@ defmodule Icm20948 do
   @gyro_x_raw :gyro_x_raw
   @gyro_y_raw :gyro_y_raw
   @gyro_z_raw :gyro_z_raw
-@accel_x_mpss :accel_x_mpss
-@accel_y_mpss :accel_y_mpss
-@accel_z_mpss :accel_z_mpss
+  @accel_x_mpss :accel_x_mpss
+  @accel_y_mpss :accel_y_mpss
+  @accel_z_mpss :accel_z_mpss
   @temp_raw :temp_raw
 
   @icm_who_am_i 0xEA
@@ -54,7 +54,7 @@ defmodule Icm20948 do
       accel_mpss: %{},
       gyro_rps: %{},
       data_ready: false,
-	data_count: 0
+      data_count: 0
     }
 
     Logger.debug("#{__MODULE__} started at #{inspect(self())}")
@@ -87,17 +87,16 @@ defmodule Icm20948 do
 
   @impl GenServer
   def handle_info({:circuits_gpio, @interrupt_pin, timestamp_ns, 0}, state) do
-data_count = if ((state.data_count + 1) == 100) do
+    data_count =
+      if state.data_count + 1 == 100 do
+        Logger.debug("Data ready Interrupt: #{ViaUtils.Format.eftb(timestamp_ns / 1.0e6, 2)}")
+        Logger.debug("accel mpss: #{ViaUtils.Format.eftb_map(state.accel_mpss, 3)}")
+        #
+        0
+      else
+        state.data_count + 1
+      end
 
-    Logger.debug("Data ready Interrupt: #{ViaUtils.Format.eftb(timestamp_ns/1.0e6,2)}")
-Logger.debug(
-      "accel mpss: #{ViaUtils.Format.eftb_map(state.accel_mpss, 3)}"
-    )
-#
-0
-else
-state.data_count + 1
-end
     {icm, accel_mpss} = get_new_data(state.icm)
     {:noreply, %{state | icm: icm, accel_mpss: accel_mpss, data_count: data_count}}
   end
@@ -150,16 +149,21 @@ end
 
     # Logger.debug("gyro raw: #{gyro_x_raw}/#{gyro_y_raw}/#{gyro_z_raw}")
     # Logger.debug("temp raw: #{temp_raw}")
-#    Logger.debug(
- #     "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
-  #  )
+    #    Logger.debug(
+    #     "accel mpss: #{ViaUtils.Format.eftb_list([accel_x_mpss, accel_y_mpss, accel_z_mpss], 3)}"
+    #  )
 
-   # Logger.debug(
+    # Logger.debug(
     #  "gyro dps: #{ViaUtils.Format.eftb_list(Enum.map([gyro_x_rps, gyro_y_rps, gyro_z_rps], fn x -> VC.rad2deg() * x end), 1)}"
-   # )
+    # )
 
     # Logger.debug("temp C: #{temp_c}")
-    {icm, %{@accel_x_mpss => accel_x_mpss, @accel_y_mpss => accel_y_mpss, @accel_z_mpss => accel_z_mpss}}
+    {icm,
+     %{
+       @accel_x_mpss => accel_x_mpss,
+       @accel_y_mpss => accel_y_mpss,
+       @accel_z_mpss => accel_z_mpss
+     }}
   end
 
   def begin(bus_name, bus_options) do
